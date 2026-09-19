@@ -1,0 +1,6 @@
+{
+  "uuid": "sam-startup-observer@test.local",
+  "name": "SAM startup test observer",
+  "description": "Observes the isolated startup regression test compositor.",
+  "shell-version": ["49", "50"]
+}

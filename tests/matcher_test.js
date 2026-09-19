@@ -96,6 +96,10 @@ function occupiedSlotWorkspace(m, winid) {
     return slot ? slot.props.configs[0].workspace : null
 }
 
+function occupiedSlot(m, winid) {
+    return m.knownWindows.find((w) => w.occupied === winid) || null
+}
+
 // hasExactMatch must only fire on a true title + wm_class match
 {
     const m = makeMatcher([makeSlot(TITLE_LONG)])
@@ -160,6 +164,34 @@ function occupiedSlotWorkspace(m, winid) {
 
     check('generic-titled window with candidate slots stays PENDING',
         ws.state === 'PENDING', `state=${ws.state}`)
+
+    m.destroy()
+}
+
+// A user move made while a window is still pending must win over the delayed
+// title-based restore decision.  The eventual match should adopt the current
+// geometry without replacing the saved identity with the loading title.
+{
+    const m = makeMatcher([makeSlot(TITLE_LONG, 100, 100)])
+    const winid = 10
+
+    m.onWindowModified(winid, 'window-created', makeDetails('Loading', 400, 300))
+    m.onWindowModified(winid, 'user-grab-begin', makeDetails('Loading', 400, 300))
+    m.onWindowModified(winid, 'user-grab-end', makeDetails('Loading', 700, 500))
+
+    const result = m.onWindowModified(winid, 'notify::title', makeDetails(TITLE_LONG, 700, 500))
+    const slot = occupiedSlot(m, winid)
+
+    check('user move during pending startup suppresses delayed restore',
+        !result.operations.some((op) => op.type === 'Place'), JSON.stringify(result.operations))
+    check('user-moved pending window settles into TRACKING',
+        m._windowStates.get(winid).state === 'TRACKING')
+    check('user geometry is adopted instead of the old saved geometry',
+        slot?.props.configs[0].relative_rect?.x === 700 &&
+        slot?.props.configs[0].relative_rect?.y === 500,
+        JSON.stringify(slot?.props.configs[0]))
+    check('loading title does not replace saved identity',
+        slot?.props.title === TITLE_LONG, JSON.stringify(slot?.props))
 
     m.destroy()
 }
